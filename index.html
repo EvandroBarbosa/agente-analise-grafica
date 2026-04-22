@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agente de Análise Gráfica v1</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff; --bg2: #f5f5f5; --bg3: #efefef;
+      --text: #111111; --text2: #555555; --border: rgba(0,0,0,0.12);
+      --radius: 10px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#1a1a1a; --bg2:#242424; --bg3:#2e2e2e; --text:#f0f0f0; --text2:#aaaaaa; --border:rgba(255,255,255,0.1); }
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+    .container { max-width: 860px; margin: 0 auto; }
+    header { margin-bottom: 1.5rem; }
+    header h1 { font-size: 22px; font-weight: 600; }
+    header p  { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+    .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 1rem; }
+    .ctrl label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; }
+    .ctrl select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-size: 14px; cursor: pointer; }
+
+    .btn-primary { width: 100%; padding: 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; margin-bottom: 1.5rem; transition: background 0.15s; }
+    .btn-primary:hover { background: var(--bg3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 12px; }
+    .card-title { font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 8px; }
+    .sub2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text2); margin-top: 6px; }
+    .legend span { display: flex; align-items: center; gap: 4px; }
+    .ld { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+
+    .ai-box { background: var(--bg2); border-radius: var(--radius); border: 1px solid var(--border); padding: 1.25rem; margin-top: 4px; }
+    .ai-title { font-size: 14px; font-weight: 500; margin-bottom: 12px; }
+
+    .sig-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 1rem; }
+    .sig-card { background: var(--bg); border-radius: 8px; border: 1px solid var(--border); padding: 12px; text-align: center; }
+    .sig-card .slbl { font-size: 11px; color: var(--text2); margin-bottom: 3px; }
+    .sig-card .sval { font-size: 16px; font-weight: 500; }
+    .sig-card .ssub { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+    .analysis { font-size: 13px; line-height: 1.75; white-space: pre-wrap; color: var(--text); }
+    .up { color: #1D9E75; } .dn { color: #D85A30; } .nt { color: #888780; }
+
+    footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 11px; color: var(--text2); text-align: center; }
+
+    @media (max-width: 600px) {
+      .controls { grid-template-columns: 1fr; }
+      .sub2 { grid-template-columns: 1fr; }
+      .sig-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Agente de Análise Gráfica</h1>
+    <p>Análise técnica com IA — B3 e Criptomoedas — dados simulados</p>
+  </header>
+
+  <div class="controls">
+    <div class="ctrl">
+      <label>Mercado</label>
+      <select id="market" onchange="onMarketChange()">
+        <option value="B3">Ações (B3)</option>
+        <option value="Cripto">Criptomoedas</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label>Ativo</label>
+      <select id="asset">
+        <option value="PETR4">PETR4</option>
+        <option value="VALE3">VALE3</option>
+        <option value="ITUB4">ITUB4</option>
+        <option value="BBDC4">BBDC4</option>
+        <option value="MGLU3">MGLU3</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label>Período</label>
+      <select id="period">
+        <option value="1sem">1 semana</option>
+        <option value="1mes" selected>1 mês</option>
+        <option value="3mes">3 meses</option>
+        <option value="6mes">6 meses</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="btn-primary" onclick="runAnalysis()" id="mainBtn">Analisar ativo</button>
+
+  <div class="card">
+    <div class="card-title">Preço + Médias Móveis (MA9 / EMA21)</div>
+    <div style="position:relative;width:100%;height:220px">
+      <canvas id="priceC" role="img" aria-label="Gráfico de preço com médias móveis MA9 e EMA21">Gráfico de preço.</canvas>
+    </div>
+    <div class="legend">
+      <span><span class="ld" style="background:#378ADD"></span>Preço</span>
+      <span><span class="ld" style="background:#E24B4A"></span>MA9</span>
+      <span><span class="ld" style="background:#1D9E75"></span>EMA21</span>
+    </div>
+  </div>
+
+  <div class="sub2">
+    <div class="card">
+      <div class="card-title">RSI (14)</div>
+      <div style="position:relative;width:100%;height:140px">
+        <canvas id="rsiC" role="img" aria-label="RSI 14 períodos">RSI.</canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">MACD (12/26/9)</div>
+      <div style="position:relative;width:100%;height:140px">
+        <canvas id="macdC" role="img" aria-label="MACD com histograma">MACD.</canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-box" id="aiBox" style="display:none">
+    <div class="ai-title">Análise do agente</div>
+    <div class="sig-grid">
+      <div class="sig-card"><div class="slbl">Entrada</div><div class="sval up" id="sEntry">—</div><div class="ssub" id="sEntryLbl"></div></div>
+      <div class="sig-card"><div class="slbl">Alvo</div><div class="sval dn" id="sExit">—</div><div class="ssub" id="sExitLbl"></div></div>
+      <div class="sig-card"><div class="slbl">Stop loss</div><div class="sval nt" id="sStop">—</div><div class="ssub" id="sStopLbl"></div></div>
+    </div>
+    <div class="analysis" id="aiText"></div>
+  </div>
+
+  <footer>
+    Agente de Análise Gráfica v1.0 — dados simulados — IA: Claude (Anthropic)<br>
+    <strong>Aviso:</strong> este sistema é informativo e não constitui recomendação de investimento.
+  </footer>
+</div>
+
+<script>
+const assetData = {
+  PETR4:  { price: 36.50, range: [32, 40],    trend: 'alta'    },
+  VALE3:  { price: 58.20, range: [52, 65],    trend: 'lateral' },
+  ITUB4:  { price: 34.80, range: [30, 38],    trend: 'alta'    },
+  BBDC4:  { price: 13.90, range: [12, 16],    trend: 'baixa'   },
+  MGLU3:  { price:  9.60, range: [7,  12],    trend: 'lateral' },
+  BTC:    { price: 94500, range: [85000, 105000], trend: 'alta' },
+  ETH:    { price:  3400, range: [2800, 4000],    trend: 'alta' },
+  SOL:    { price:   185, range: [150, 220],      trend: 'lateral' },
+};
+
+function generatePriceData(asset, n = 30) {
+  const d = assetData[asset] || assetData['PETR4'];
+  const [lo, hi] = d.range;
+  let p = d.price * (0.92 + Math.random() * 0.08);
+  const prices = [];
+  for (let i = 0; i < n; i++) {
+    p = p + (Math.random() - 0.48) * (hi - lo) * 0.03;
+    p = Math.max(lo, Math.min(hi, p));
+    prices.push(parseFloat(p.toFixed(2)));
+  }
+  prices[n - 1] = d.price;
+  return prices;
+}
+
+function calcMA(data, period) {
+  return data.map((_, i) => {
+    if (i < period - 1) return null;
+    const slice = data.slice(i - period + 1, i + 1);
+    return parseFloat((slice.reduce((a, b) => a + b, 0) / period).toFixed(2));
+  });
+}
+
+function calcEMA(data, period) {
+  const k = 2 / (period + 1);
+  return data.reduce((acc, v, i) => {
+    acc.push(i === 0 ? v : parseFloat((v * k + acc[i - 1] * (1 - k)).toFixed(2)));
+    return acc;
+  }, []);
+}
+
+function calcRSI(data, period = 14) {
+  return data.map((_, i) => {
+    if (i < period) return null;
+    let gains = 0, losses = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      const diff = data[j] - data[j - 1];
+      diff > 0 ? (gains += diff) : (losses -= diff);
+    }
+    const rs = gains / (losses || 1e-9);
+    return parseFloat((100 - 100 / (1 + rs)).toFixed(1));
+  });
+}
+
+function calcMACD(data) {
+  const ema12 = calcEMA(data, 12);
+  const ema26 = calcEMA(data, 26);
+  const macdLine  = ema12.map((v, i) => parseFloat((v - ema26[i]).toFixed(2)));
+  const signal    = calcEMA(macdLine, 9);
+  const histogram = macdLine.map((v, i) => parseFloat((v - signal[i]).toFixed(2)));
+  return { macdLine, signal, histogram };
+}
+
+function buildLabels(n) {
+  const today = new Date();
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - (n - 1 - i));
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  });
+}
+
+let pChart, rChart, mChart;
+
+function renderCharts(asset) {
+  const prices = generatePriceData(asset, 30);
+  const labels  = buildLabels(30);
+  const ma9     = calcMA(prices, 9);
+  const ema21   = calcEMA(prices, 21);
+  const rsi     = calcRSI(prices);
+  const { macdLine, signal, histogram } = calcMACD(prices);
+
+  if (pChart) pChart.destroy();
+  if (rChart) rChart.destroy();
+  if (mChart) mChart.destroy();
+
+  const isDark    = matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+  const tickColor = '#888780';
+
+  pChart = new Chart(document.getElementById('priceC'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'Preço', data: prices, borderColor: '#378ADD', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(55,138,221,0.08)', tension: 0.3 },
+      { label: 'MA9',   data: ma9,    borderColor: '#E24B4A', borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.3, borderDash: [4, 3] },
+      { label: 'EMA21', data: ema21,  borderColor: '#1D9E75', borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.3 },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+      scales: {
+        x: { ticks: { color: tickColor, maxTicksLimit: 8, font: { size: 10 } }, grid: { color: gridColor } },
+        y: { ticks: { color: tickColor, font: { size: 10 }, callback: v => v > 1000 ? v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : v.toFixed(2) }, grid: { color: gridColor } },
+      },
+    },
+  });
+
+  rChart = new Chart(document.getElementById('rsiC'), {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'RSI', data: rsi, borderColor: '#BA7517', borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.3 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: tickColor, maxTicksLimit: 5, font: { size: 9 } }, grid: { color: gridColor } },
+        y: { min: 0, max: 100, ticks: { color: tickColor, font: { size: 9 }, stepSize: 25 }, grid: { color: gridColor } },
+      },
+    },
+  });
+
+  mChart = new Chart(document.getElementById('macdC'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Histograma', data: histogram, backgroundColor: histogram.map(v => v >= 0 ? 'rgba(29,158,117,0.6)' : 'rgba(216,90,48,0.6)'), type: 'bar' },
+      { label: 'MACD',  data: macdLine, borderColor: '#378ADD', borderWidth: 1.5, pointRadius: 0, fill: false, type: 'line', tension: 0.3 },
+      { label: 'Sinal', data: signal,   borderColor: '#E24B4A', borderWidth: 1.2, pointRadius: 0, fill: false, type: 'line', tension: 0.3, borderDash: [4, 2] },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: tickColor, maxTicksLimit: 5, font: { size: 9 } }, grid: { color: gridColor } },
+        y: { ticks: { color: tickColor, font: { size: 9 } }, grid: { color: gridColor } },
+      },
+    },
+  });
+
+  return { prices, ma9, ema21, rsi, macdLine, signal, histogram };
+}
+
+function fmtPrice(v, asset) {
+  const cripto = ['BTC', 'ETH', 'SOL'];
+  if (cripto.includes(asset) && v > 1000) return 'R$ ' + v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  return 'R$ ' + v.toFixed(2);
+}
+
+function onMarketChange() {
+  const mkt = document.getElementById('market').value;
+  const sel = document.getElementById('asset');
+  if (mkt === 'Cripto') {
+    sel.innerHTML = '<option value="BTC">Bitcoin (BTC)</option><option value="ETH">Ethereum (ETH)</option><option value="SOL">Solana (SOL)</option>';
+  } else {
+    sel.innerHTML = '<option value="PETR4">PETR4</option><option value="VALE3">VALE3</option><option value="ITUB4">ITUB4</option><option value="BBDC4">BBDC4</option><option value="MGLU3">MGLU3</option>';
+  }
+}
+
+async function runAnalysis() {
+  const btn    = document.getElementById('mainBtn');
+  const asset  = document.getElementById('asset').value;
+  const market = document.getElementById('market').value;
+  const period = document.getElementById('period').value;
+  btn.disabled = true; btn.textContent = 'Analisando...';
+
+  const { prices, ma9, ema21, rsi, macdLine, signal } = renderCharts(asset);
+
+  const lastPrice = prices[prices.length - 1];
+  const lastMA9   = ma9.filter(v => v != null).pop();
+  const lastEMA21 = ema21[ema21.length - 1];
+  const lastRSI   = rsi.filter(v => v != null).pop();
+  const lastMACD  = macdLine[macdLine.length - 1];
+  const lastSig   = signal[signal.length - 1];
+  const bullish   = lastMACD > lastSig;
+  const fmt       = v => fmtPrice(v, asset);
+
+  document.getElementById('aiBox').style.display = '';
+  document.getElementById('sEntry').textContent    = fmt(lastPrice * (lastRSI < 50 ? 0.985 : 1.005));
+  document.getElementById('sEntryLbl').textContent = bullish ? 'tendência de alta' : 'tendência de baixa';
+  document.getElementById('sExit').textContent     = fmt(lastPrice * (bullish ? 1.06 : 0.94));
+  document.getElementById('sExitLbl').textContent  = 'alvo técnico';
+  document.getElementById('sStop').textContent     = fmt(lastPrice * (bullish ? 0.97 : 1.03));
+  document.getElementById('sStopLbl').textContent  = 'proteção de capital';
+  document.getElementById('aiText').textContent    = 'Consultando agente IA...';
+
+  const prompt = `Você é um analista técnico especializado. Analise o ativo ${asset} (${market}) com os seguintes dados:
+Período: ${period} | Preço atual: ${fmt(lastPrice)}
+MA9: ${fmt(lastMA9)} — preço ${lastPrice > lastMA9 ? 'acima' : 'abaixo'} da MA9
+EMA21: ${fmt(lastEMA21)} — preço ${lastPrice > lastEMA21 ? 'acima' : 'abaixo'} da EMA21
+RSI(14): ${lastRSI} (${lastRSI > 70 ? 'sobrecomprado' : lastRSI < 30 ? 'sobrevendido' : 'neutro'})
+MACD: ${lastMACD.toFixed(3)} | Sinal: ${lastSig.toFixed(3)} | ${bullish ? 'MACD acima do sinal (bullish)' : 'MACD abaixo do sinal (bearish)'}
+Forneça análise técnica objetiva com: tendência atual, ponto de entrada, alvo de saída, stop loss e sinal (COMPRA/VENDA/AGUARDAR).`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] }),
+    });
+    const data = await resp.json();
+    document.getElementById('aiText').textContent = data.content?.map(c => c.text || '').join('') || 'Erro ao obter análise.';
+  } catch (e) {
+    document.getElementById('aiText').textContent = 'Erro na análise: ' + e.message;
+  }
+
+  btn.disabled = false; btn.textContent = 'Analisar ativo';
+}
+</script>
+</body>
+</html>
